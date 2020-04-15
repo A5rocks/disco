@@ -186,6 +186,12 @@ class Bot(LoggingClass):
             mod = importlib.import_module(mod)
             self.config.commands_level_getter = getattr(mod, func)
 
+        # same for custom prefix getter
+        if isinstance(self.config.commands_prefix_getter, six.string_types):
+            mod, func = self.config.commands_prefix_getter.rsplit('.', 1)
+            mod = importlib.import_module(mod)
+            self.config.commands_prefix_getter = getattr(mod, func)
+
         # Stores the last message for every single channel
         self.last_message_cache = {}
 
