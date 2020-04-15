@@ -18,7 +18,6 @@ except ImportError:
 from disco.client import Client, ClientConfig       # noqa: E402
 from disco.bot import Bot, BotConfig                # noqa: E402
 from disco.util.logging import setup_logging        # noqa: E402
-from disco.util.serializer import Serializer        # noqa: E402
 from disco.gateway.sharder import AutoSharder       # noqa: E402
 
 
@@ -48,37 +47,26 @@ def bot_creator(config=None, bot=True, autosharded=False, process_config_file=Tr
     :class:`disco.bot.bot.Bot` or :class:`disco.gateway.sharder.AutoSharder` or :class:`disco.client.Client`
         A bot with all the configuration specified.
     """
-    config = config or {}
-    config.update(kwargs)
+    dict_config = config or {}
+    dict_config.update(kwargs)
 
     if process_config_file:
-        possible_configs = ['config.json', 'config.yaml']
+        if os.path.exists('config.json'):
+            config = ClientConfig.from_file('config.json')
+        elif os.path.exists('config.yaml'):
+            config = ClientConfig.from_file('config.yaml')
+        else:
+            config = ClientConfig()
 
-        for config_file_name in possible_configs:
-            with open(config_file_name, 'r') as f:
-                data = f.read()
+    config.__dict__.update(dict_config)
 
-            _, ext = os.path.splitext(config_file_name)
-            Serializer.check_format(ext[1:])
-
-            old_config = config
-            config = Serializer.loads(ext[1:], data)
-            config.update(old_config)
-
-    # Change the dictionary configuration to disco's proprietary Config
-    config = ClientConfig(config)
-
-    # Magical auto-sharding that you will eventually want
     if autosharded:
         return AutoSharder(config)
 
-    # Setup logging based on the configured level
     setup_logging(level=getattr(logging, config.log_level.upper()))
 
-    # Create the bot/client
     client = Client(config)
 
-    # if there exists a config for the bot, then return the bot, else return the client.
     if hasattr(config, 'bot'):
         bot_config = BotConfig(config.bot)
         return Bot(client, bot_config)
