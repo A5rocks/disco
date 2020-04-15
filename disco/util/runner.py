@@ -1,6 +1,7 @@
 """ Utility module to help run a bot programmatically. """
 from __future__ import absolute_import
 import logging
+import os
 from gevent import monkey
 
 monkey.patch_all()
@@ -13,17 +14,20 @@ except ImportError:
     Union = None
 
 # imports from disco (if moved to the top, they will probably break
-# due to requiring `gevent`'s monkey patching for asynchronous)
+# due to requiring `gevent`'s monkey patching for async)
 from disco.client import Client, ClientConfig       # noqa: E402
 from disco.bot import Bot, BotConfig                # noqa: E402
 from disco.util.logging import setup_logging        # noqa: E402
+from disco.util.serializer import Serializer        # noqa: E402
 from disco.gateway.sharder import AutoSharder       # noqa: E402
 
 
-def bot_creator(config=None, bot=True, autosharded=False, **kwargs):
-    # type: (dict, bool, bool, **Any) -> Union[Bot, Client, AutoSharder]
+def bot_creator(config=None, bot=True, autosharded=False, process_config_file=True, **kwargs):
+    # type: (dict, bool, bool, bool, **Any) -> Union[Bot, Client, AutoSharder]
     """
-    Create a bot object and return it to be run without the cli.
+    Create a bot object and return it to be run without the cli. The config overrides in the following way:
+
+    `kwargs` > `config` > config file
 
     Parameters
     -----------
@@ -35,6 +39,9 @@ def bot_creator(config=None, bot=True, autosharded=False, **kwargs):
         `True` for `Bot`, `False` for `Client`. This only matters if the config has no `bot` key.
     autosharded : bool
         Whether to automatically shard the bot.
+    process_config_file : bool
+        Whether to check for a `config.json` / `config.yaml` and use that as a base (which then
+        updates them with `config` and `kwargs`).
 
     Yields
     -------
@@ -43,6 +50,20 @@ def bot_creator(config=None, bot=True, autosharded=False, **kwargs):
     """
     config = config or {}
     config.update(kwargs)
+
+    if process_config_file:
+        possible_configs = ['config.json', 'config.yaml']
+
+        for config_file_name in possible_configs:
+            with open(config_file_name, 'r') as f:
+                data = f.read()
+
+            _, ext = os.path.splitext(config_file_name)
+            Serializer.check_format(ext[1:])
+
+            old_config = config
+            config = Serializer.loads(ext[1:], data)
+            config.update(old_config)
 
     # Change the dictionary configuration to disco's proprietary Config
     config = ClientConfig(config)
